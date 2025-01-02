@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth, db, sendMessage, createChat, clearChatMessages, updateUserStatus, searchUserByEmail } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, getDocs, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, getDocs, serverTimestamp, addDoc, deleteDoc } from 'firebase/firestore';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { FiLogOut, FiSearch, FiMoreVertical, FiSend, FiEdit, FiArrowLeft } from 'react-icons/fi';
@@ -65,6 +65,11 @@ const Chat = () => {
   const [foundUser, setFoundUser] = useState(null);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const fileInputRef = useRef(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [showMessageOptions, setShowMessageOptions] = useState(false);
+  const [longPressTimeout, setLongPressTimeout] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedMessage, setEditedMessage] = useState('');
 
   // Ekran boyutunu izle
   useEffect(() => {
@@ -611,6 +616,49 @@ const Chat = () => {
     }
   };
 
+  // Uzun basma işlemi için fonksiyonlar
+  const handleTouchStart = (message) => {
+    const timeout = setTimeout(() => {
+      setSelectedMessage(message);
+      setShowMessageOptions(true);
+    }, 500); // 500ms uzun basma süresi
+    setLongPressTimeout(timeout);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimeout) {
+      clearTimeout(longPressTimeout);
+      setLongPressTimeout(null);
+    }
+  };
+
+  // Mesaj silme fonksiyonu
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      await deleteDoc(doc(db, 'messages', messageId));
+      setShowMessageOptions(false);
+      setSelectedMessage(null);
+    } catch (error) {
+      console.error('Mesaj silme hatası:', error);
+    }
+  };
+
+  // Mesaj düzenleme fonksiyonu
+  const handleEditMessage = async (messageId, newText) => {
+    try {
+      await updateDoc(doc(db, 'messages', messageId), {
+        text: newText,
+        edited: true,
+        editedAt: serverTimestamp()
+      });
+      setIsEditing(false);
+      setSelectedMessage(null);
+      setEditedMessage('');
+    } catch (error) {
+      console.error('Mesaj düzenleme hatası:', error);
+    }
+  };
+
   return (
     <div className="h-screen flex bg-[#111b21]">
       {/* Mobil görünümde seçili sohbet varsa sadece mesajlaşma alanını göster */}
@@ -771,15 +819,62 @@ const Chat = () => {
                     <div
                       key={message.id}
                       className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}
+                      onTouchStart={() => handleTouchStart(message)}
+                      onTouchEnd={handleTouchEnd}
+                      onMouseEnter={() => !isMobileView && setSelectedMessage(message)}
+                      onMouseLeave={() => !isMobileView && setSelectedMessage(null)}
                     >
                       <div
-                        className={`relative max-w-[70%] p-3 rounded-lg ${
+                        className={`relative max-w-[70%] p-3 rounded-lg group ${
                           isMyMessage
                             ? 'bg-[#005c4b] text-white rounded-tr-none'
                             : 'bg-[#202c33] text-white rounded-tl-none'
                         }`}
                       >
-                        {message.text}
+                        {isEditing && selectedMessage?.id === message.id ? (
+                          <form onSubmit={(e) => {
+                            e.preventDefault();
+                            handleEditMessage(message.id, editedMessage);
+                          }}>
+                            <input
+                              type="text"
+                              value={editedMessage}
+                              onChange={(e) => setEditedMessage(e.target.value)}
+                              className="w-full bg-[#2a3942] text-white rounded px-2 py-1"
+                              autoFocus
+                            />
+                          </form>
+                        ) : (
+                          <>
+                            {message.text}
+                            {message.edited && (
+                              <span className="text-[0.6rem] text-gray-400 ml-1">(düzenlendi)</span>
+                            )}
+                          </>
+                        )}
+                        
+                        {/* Mesaj seçenekleri */}
+                        {selectedMessage?.id === message.id && isMyMessage && !isEditing && (
+                          <div className={`absolute ${isMobileView ? 'top-full mt-2' : 'top-0 right-0'} bg-[#2a3942] rounded-lg shadow-lg z-10`}>
+                            <button
+                              onClick={() => {
+                                setIsEditing(true);
+                                setEditedMessage(message.text);
+                                setShowMessageOptions(false);
+                              }}
+                              className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-[#3c4c56]"
+                            >
+                              Düzenle
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMessage(message.id)}
+                              className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-[#3c4c56]"
+                            >
+                              Sil
+                            </button>
+                          </div>
+                        )}
+
                         <div className="flex items-center justify-end space-x-1 mt-1">
                           <span className="text-[0.65rem] text-gray-400">
                             {messageTime.toLocaleTimeString('tr-TR', {
