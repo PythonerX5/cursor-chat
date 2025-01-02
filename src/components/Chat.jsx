@@ -845,17 +845,31 @@ const Chat = () => {
                             />
                           </form>
                         ) : (
-                          <>
-                            {message.text}
-                            {message.edited && (
-                              <span className="text-[0.6rem] text-gray-400 ml-1">(düzenlendi)</span>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              {message.text}
+                              {message.edited && (
+                                <span className="text-[0.6rem] text-gray-400 ml-1">(düzenlendi)</span>
+                              )}
+                            </div>
+                            {isMyMessage && !isMobileView && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedMessage(message);
+                                  setShowMessageOptions(!showMessageOptions);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-gray-400 hover:text-gray-200"
+                              >
+                                <FiMoreVertical size={16} />
+                              </button>
                             )}
-                          </>
+                          </div>
                         )}
                         
                         {/* Mesaj seçenekleri */}
-                        {selectedMessage?.id === message.id && isMyMessage && !isEditing && (
-                          <div className={`absolute ${isMobileView ? 'top-full mt-2' : 'top-0 right-0'} bg-[#2a3942] rounded-lg shadow-lg z-10`}>
+                        {selectedMessage?.id === message.id && showMessageOptions && isMyMessage && !isEditing && (
+                          <div className={`absolute ${isMobileView ? 'top-full mt-2' : 'top-0 right-0 mt-6'} bg-[#2a3942] rounded-lg shadow-lg z-10`}>
                             <button
                               onClick={() => {
                                 setIsEditing(true);
